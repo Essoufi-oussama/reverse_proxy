@@ -27,7 +27,7 @@
 struct Data
 
 {
-    Data(int fd) : headers_done(false), content_length{0}, sockfd{fd}, read_buffer{""}, write_buffer{""} {};
+    Data(int fd) : headers_done(false), content_length{0}, sockfd{-1}, read_buffer{""}, write_buffer{""} {};
     int sockfd;
     std::string read_buffer;
     std::string write_buffer;
@@ -50,7 +50,7 @@ class Server
         void open_backend_connection(Data& client_data);
         void add_new_connection();
         void backend_server_read(int fd, Data& data);
-        void client_read(Data& client_data);
+        void client_read(int fd, Data& client_data);
         bool check_body(Data& client_data);
         void send_request_server(int fd, Data& client_data);
         void check_header(const std::string& header, size_t& headers_length, std::unordered_set <std::string>& elements, bool from_client);

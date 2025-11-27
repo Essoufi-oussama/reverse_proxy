@@ -1,4 +1,4 @@
-SRC =  main.cpp Server.cpp connection/new_connection.cpp
+SRC =  main.cpp Server.cpp connection/new_connection.cpp connection/client_request.cpp
 
 INCLUDES = Server.hpp
 

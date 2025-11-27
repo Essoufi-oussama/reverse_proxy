@@ -72,9 +72,12 @@ void Server::run()
        int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
        for (int i = 0; i < n ; i++)
        {
-            int fd = events[i].data.fd;
+           int fd = events[i].data.fd;
+           auto it_client = client_map.find(fd);
+           auto it_server = backend_map.find(fd);
             if (events[i].events & EPOLLIN)
             {
+
                 if (fd == server_socket)
                 {
                     std::cout << "received new connection\n";
@@ -82,11 +85,11 @@ void Server::run()
                 }
                 // else if (backend_map.find(fd) != backend_map.end())
                 //     backend_server_read(fd, backend_map[fd]);
-                // else if (client_map.find(fd) != client_map.end())
-                // {
-                //     if (client_map[fd].sockfd == - 1) //  client w/no active request
-                //         client_read(client_map[fd]);
-                // }
+                else if (it_client != client_map.end())
+                {
+                    if (it_client->second.sockfd == - 1)
+                        client_read(fd, it_client->second);
+                }
             }
             // else if (events[i].events & EPOLLOUT)
             // {
