@@ -48,6 +48,7 @@ Server::Server()
     server_event.data.fd = server_socket;
     server_event.events = EPOLLIN;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &server_event);
+    std::cout << "Server listning on Port 8080 " ;
 }
 
 
@@ -59,5 +60,39 @@ Server::~Server()
     {
         close(x.second.sockfd);
         close(x.first);
+    }
+}
+
+
+void Server::run()
+{
+    struct epoll_event events[MAX_EVENTS];
+    while(1)
+    {
+       int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+       for (int i = 0; i < n ; i++)
+       {
+            int fd = events[i].data.fd;
+            if (events[i].events & EPOLLIN)
+            {
+                if (fd == server_socket)
+                {
+                    std::cout << "received new connection\n";
+                    add_new_connection();
+                }
+                // else if (backend_map.find(fd) != backend_map.end())
+                //     backend_server_read(fd, backend_map[fd]);
+                // else if (client_map.find(fd) != client_map.end())
+                // {
+                //     if (client_map[fd].sockfd == - 1) //  client w/no active request
+                //         client_read(client_map[fd]);
+                // }
+            }
+            // else if (events[i].events & EPOLLOUT)
+            // {
+            //     if (backend_map.find(fd) != backend_map.end())
+            //         send_request_server(fd, backend_map[fd]);
+            // }
+       } 
     }
 }

@@ -1,4 +1,4 @@
-SRC =  main.cpp Server.cpp
+SRC =  main.cpp Server.cpp connection/new_connection.cpp
 
 INCLUDES = Server.hpp
 
@@ -14,7 +14,7 @@ $(NAME)	:  $(OBJ)
 	$(CC) $(FLAGS) $(OBJ) -o $(NAME)
 
 %.o: %.cpp $(INCLUDES)
-	$(CC)  -c $< -o $@
+	$(CC) -c $< -o $@
 
 clean	:
 	rm -rf $(OBJ)
