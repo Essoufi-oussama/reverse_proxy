@@ -52,7 +52,7 @@ class Server
         void backend_server_read(int fd, Data& data);
         void client_read(int fd, Data& client_data);
         bool check_body(Data& client_data);
-        void send_request_server(int fd, Data& client_data);
+        void send_request_server(int fd, Data& data);
         void check_header(const std::string& header, size_t& headers_length, std::unordered_set <std::string>& elements, bool from_client);
         int validate_headers(const std::string& headers, const std::string& method, bool from_client);
         void send_error_code(int fd, int error_code);

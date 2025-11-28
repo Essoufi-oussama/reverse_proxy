@@ -38,7 +38,7 @@ void Server::open_backend_connection(Data& client_data, int fd)
     client_data.sockfd = -1;
     struct   epoll_event server_events;
     server_events.data.fd = backenfd;
-    server_events.events = EPOLLIN;
+    server_events.events = EPOLLOUT;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, backenfd, &server_events);
 }
 

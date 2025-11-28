@@ -91,11 +91,11 @@ void Server::run()
                         client_read(fd, it_client->second);
                 }
             }
-            // else if (events[i].events & EPOLLOUT)
-            // {
-            //     if (backend_map.find(fd) != backend_map.end())
-            //         send_request_server(fd, backend_map[fd]);
-            // }
+            else if (events[i].events & EPOLLOUT)
+            {
+                if (it_server != backend_map.end())
+                    send_request_server(fd, it_server->second);
+            }
        } 
     }
 }
