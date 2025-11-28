@@ -1,7 +1,10 @@
 {
-    "C_Cpp.default.compilerPath": "/usr/bin/g++",
     "files.associations": {
-        "stdexcept": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "string_view": "cpp",
+        "ranges": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
@@ -19,8 +22,6 @@
         "concepts": "cpp",
         "cstdint": "cpp",
         "deque": "cpp",
-        "unordered_map": "cpp",
-        "unordered_set": "cpp",
         "vector": "cpp",
         "exception": "cpp",
         "algorithm": "cpp",
@@ -31,8 +32,6 @@
         "numeric": "cpp",
         "optional": "cpp",
         "random": "cpp",
-        "string": "cpp",
-        "string_view": "cpp",
         "system_error": "cpp",
         "tuple": "cpp",
         "type_traits": "cpp",
@@ -45,8 +44,9 @@
         "new": "cpp",
         "numbers": "cpp",
         "ostream": "cpp",
-        "ranges": "cpp",
+        "stdexcept": "cpp",
         "streambuf": "cpp",
         "typeinfo": "cpp"
-    }
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/g++"
 }

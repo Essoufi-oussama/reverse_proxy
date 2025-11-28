@@ -14,6 +14,8 @@ void Server::send_error_code(int fd, int error_code)
                 return std::string("URI Too Long");
             case 503:
                 return std::string("Service Unavailable");
+            case 502:
+                return std::string("Bad Gateway");
             default:
                 break;
         }

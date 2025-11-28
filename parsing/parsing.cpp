@@ -30,38 +30,77 @@ bool Server::check_body(Data& client_data)
 
 std::string valid_request_line(const std::string& buffer)
 {
-    std::string_view valid[6] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"};
+    auto valid_method = [] (const std::string& method, size_t method_end)
+    {
+        std::string_view valid[6] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"};
+        int method_end = method.find(' ');
+        for(int i = 0; i < 6 ; i++)
+        {
+            if (method.compare(0, method_end, valid[i]) == 0)
+                return true;
+        }
+        return false;
+    };
+    auto check_version = [] (const std::string& buffer)
+    {
+        std::string_view valid[] = {"HTTP/1.1", "HTTP/2", "HTTP/3"};
+
+        for (auto& x : valid)
+        {
+            if (buffer.compare(0, x.length(), x) == 0 && buffer[x.length()] == '\r')
+                return;
+        }
+        throw 400;
+    };
+
     int method_end = buffer.find(' ');
     if (method_end == std::string::npos)
             throw 400;
-    
-    for (int i = 0; i < 6; i++)
-    {
-        if (buffer.compare(0, method_end, valid[i]) == 0)
-        {
-            int path_pos = buffer.find(' ', method_end + 1);
-            if (path_pos == std::string::npos)
-                throw 400;
-            int version_end = buffer.find("\r\n", path_pos + 1) ;
-            if (version_end == std::string::npos)
-                throw 400;
-            auto check_version = [] (const std::string& buffer)
-            {
-                std::string_view valid[] = {"HTTP/1.1", "HTTP/2", "HTTP/3"};
+    if (!valid_method(buffer, method_end))
+        throw 400;
+    int path_pos = buffer.find(' ', method_end + 1);
+    if (path_pos == std::string::npos)
+        throw 400;
+    int version_end = buffer.find("\r\n", path_pos + 1) ;
+    check_version(buffer.c_str() + path_pos + 1);
+    return buffer.substr(0, method_end); 
+}
 
-                for (auto& x : valid)
-                {
-                    if (buffer.compare(0, x.length(), x) == 0 && buffer[x.length()] == '\r')
-                        return;
-                }
-                throw 400;
-            };
-            check_version(buffer.c_str() + path_pos + 1);
-            return buffer.substr(0, method_end);      
+void valid_response_line(const std::string& buffer)
+{
+    auto check_version = [] (const std::string& buffer)
+    {
+        std::string_view valid[] = {"HTTP/1.1", "HTTP/2", "HTTP/3"};
+
+        for (auto& x : valid)
+        {
+            if (buffer.compare(0, x.length(), x) == 0)
+                return;
         }
+        throw 502;
+    };
+    auto valid_status_code = [] (const std::string& buffer) {
+
+        if(buffer.size() != 3)
+            return false;
+        return (std::all_of(buffer.begin(), buffer.end(), [] (unsigned char c) {return std::isdigit(c);}));
+    };
+    size_t version_end = buffer.find(' ');
+    if (version_end == std::string::npos)
+        throw 502;
+    size_t status_code_end = buffer.find(' ', version_end + 1);
+    if (status_code_end == std::string::npos)
+    {
+        status_code_end = buffer.find("\r\n", version_end + 1);
+        if( status_code_end == std::string::npos)
+            throw 502;
     }
-    throw 400;
-    return "";
+    std::string version = buffer.substr(0, version_end);
+    std::string status  = buffer.substr(version_end + 1, status_code_end - (version_end + 1));
+    check_version(version);
+    if(!valid_status_code(status))
+        throw 502;
+    // there is parsing fro response phrase ? maybe later
 }
 
 int extract_content_length(const std::string& content_length)
@@ -189,11 +228,15 @@ bool Server::feed(Data& data, bool from_client)
         return false;
     }
     std::string method {""};
+    // can tolerate only 1 CRLF
+    size_t line_start = buffer.find("\r\n");
+    if (line_start != 2)
+        line_start = 0;
     if (from_client)
-        method = valid_request_line(buffer);
-    // else
-    //     valid_response_line(buffer);
-    size_t headers_start = buffer.find("\r\n");
+        method = valid_request_line(buffer.c_str() + line_start);
+    else
+        valid_response_line(buffer.c_str() + line_start);
+    size_t headers_start = buffer.find("\r\n", line_start);
     data.content_length = validate_headers(buffer.c_str() + headers_start + 2, method, from_client);
     data.headers_done = true;
     return true;

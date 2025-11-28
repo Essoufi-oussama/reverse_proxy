@@ -83,8 +83,8 @@ void Server::run()
                     std::cout << "received new connection\n";
                     add_new_connection();
                 }
-                // else if (backend_map.find(fd) != backend_map.end())
-                //     backend_server_read(fd, backend_map[fd]);
+                else if (backend_map.find(fd) != backend_map.end())
+                    backend_server_read(fd, backend_map[fd]);
                 else if (it_client != client_map.end())
                 {
                     if (it_client->second.sockfd != - 1)
