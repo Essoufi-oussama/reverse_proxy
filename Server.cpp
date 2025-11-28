@@ -87,7 +87,7 @@ void Server::run()
                 //     backend_server_read(fd, backend_map[fd]);
                 else if (it_client != client_map.end())
                 {
-                    if (it_client->second.sockfd == - 1)
+                    if (it_client->second.sockfd != - 1)
                         client_read(fd, it_client->second);
                 }
             }

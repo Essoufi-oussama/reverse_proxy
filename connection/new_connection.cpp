@@ -1,5 +1,47 @@
 #include "../Server.hpp"
 
+
+void Server::open_backend_connection(Data& client_data, int fd)
+{
+    addrinfo *p, *res, events;
+
+    memset(&events, 0 , sizeof(events));
+    events.ai_family = AF_UNSPEC;
+    events.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo("localhost", "8081", &events, &res) == -1)
+    {
+        throw std::runtime_error("get addrinfo fail");
+    }
+    int backenfd;
+    for (p = res; p != NULL; p = p->ai_next)
+    {
+        int sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (sockfd == -1)
+            continue;
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
+        {
+            close(sockfd);
+            continue;
+        }
+        backenfd = sockfd;
+        break;
+    }
+    freeaddrinfo(res);
+    if (p == NULL)
+        throw 503;
+    int opts = fcntl(backenfd, F_GETFL);
+    fcntl(backenfd, F_SETFL, opts | O_NONBLOCK);
+    backend_map.emplace(backenfd, Data {fd});
+    auto &it = backend_map.find(backenfd)->second;
+    it.write_buffer = client_data.read_buffer;
+    client_data.read_buffer = "";
+    client_data.sockfd = -1;
+    struct   epoll_event server_events;
+    server_events.data.fd = backenfd;
+    server_events.events = EPOLLIN;
+    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, backenfd, &server_events);
+}
+
 void Server::add_new_connection()
 {
     int client_fd = accept(server_socket, NULL, NULL);

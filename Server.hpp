@@ -27,7 +27,7 @@
 struct Data
 
 {
-    Data(int fd) : headers_done(false), content_length{0}, sockfd{-1}, read_buffer{""}, write_buffer{""} {};
+    Data(int fd) : headers_done(false), content_length{0}, sockfd{fd}, read_buffer{""}, write_buffer{""} {};
     int sockfd;
     std::string read_buffer;
     std::string write_buffer;
@@ -47,7 +47,7 @@ class Server
         std::unordered_map<int, Data> client_map;
         std::unordered_map<int, Data> backend_map;
         bool feed(Data& client_data, bool from_client);
-        void open_backend_connection(Data& client_data);
+        void open_backend_connection(Data& client_data, int fd);
         void add_new_connection();
         void backend_server_read(int fd, Data& data);
         void client_read(int fd, Data& client_data);

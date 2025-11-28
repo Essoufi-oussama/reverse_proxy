@@ -12,6 +12,8 @@ void Server::send_error_code(int fd, int error_code)
                 return std::string("Request Header Fields Too Large");
             case 414:
                 return std::string("URI Too Long");
+            case 503:
+                return std::string("Service Unavailable");
             default:
                 break;
         }
@@ -74,6 +76,5 @@ void Server::client_read(int fd, Data& client_data)
             send_error_code(fd, error_code);
         }   
     }
-    // open_backend_connection(client_data);
-    client_data.sockfd = 1;
+    open_backend_connection(client_data, fd);
 }
