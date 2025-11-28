@@ -48,7 +48,7 @@ Server::Server()
     server_event.data.fd = server_socket;
     server_event.events = EPOLLIN;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &server_event);
-    std::cout << "Server listning on Port 8080 " ;
+    std::cout << "Server listning on Port 8080\n" ;
 }
 
 

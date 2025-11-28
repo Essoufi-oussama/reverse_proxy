@@ -1,5 +1,42 @@
 #include "../Server.hpp"
 
+void Server::send_error_code(int fd, int error_code)
+{
+    auto error_reason = [] (int error_code) {
+        
+        switch (error_code)
+        {
+            case 400:
+                return std::string("Bad Request");
+            case 431:
+                return std::string("Request Header Fields Too Large");
+            case 414:
+                return std::string("URI Too Long");
+            default:
+                break;
+        }
+        return std::string("");
+    };
+    Data& client_data = client_map.find(fd)->second;
+
+    client_data.write_buffer = "HTTP/1.1 " + std::to_string(error_code) + ' ' + error_reason(error_code) + "\r\n";
+    client_data.write_buffer += "Content-Length: 0\r\nConnection: close\r\n\r\n";
+    int bytes = send(fd, client_data.write_buffer.c_str(), client_data.write_buffer.size(), 0);
+    if (bytes < client_data.write_buffer.size() || (bytes <= 0 && (errno == EWOULDBLOCK || errno == EAGAIN)))
+    {
+        epoll_event event;
+        event.data.fd = fd;
+        event.events = EPOLLOUT;
+        epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event);
+        if (bytes > 0)
+            client_data.write_buffer = client_data.write_buffer.substr(bytes, client_data.write_buffer.size() - bytes);
+        return; 
+    }
+    close(fd);
+    client_map.erase(fd);
+    std::cout << "client disconnected because of bad request\n";
+}
+
 void Server::client_read(int fd, Data& client_data)
 {
     char buffer[BUFFER_SIZE];
@@ -10,11 +47,11 @@ void Server::client_read(int fd, Data& client_data)
             return;
         close(fd);
         client_map.erase(fd);
+        std::cout << "client Disconnected\n";
         return ;
     }
     buffer[bytes] = 0;
     client_data.read_buffer += buffer;
-    std::cout << "received: " << client_data.read_buffer;
     if (client_data.headers_done)
     {
         if (!check_body(client_data))
@@ -22,21 +59,21 @@ void Server::client_read(int fd, Data& client_data)
     }
     else
     {
-        if (feed(client_data))
+        try
         {
-            if (!check_body(client_data))
-                return ; 
+            if (feed(client_data, true))
+            {
+                if (!check_body(client_data))
+                    return ; 
+            }
+            else
+                return ;
         }
-        else
+        catch(int error_code)
         {
-            struct epoll_event events;
-            memset(&events, 0 , sizeof(events));
-            events.events = EPOLLOUT;
-            events.data.fd = client_data.sockfd;
-            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_data.sockfd,&events);
-            return ;
-        }
+            send_error_code(fd, error_code);
+        }   
     }
-    open_backend_connection(client_data);
+    // open_backend_connection(client_data);
     client_data.sockfd = 1;
 }
