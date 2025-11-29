@@ -33,7 +33,6 @@ std::string valid_request_line(const std::string& buffer)
     auto valid_method = [] (const std::string& method, size_t method_end)
     {
         std::string_view valid[6] = {"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"};
-        int method_end = method.find(' ');
         for(int i = 0; i < 6 ; i++)
         {
             if (method.compare(0, method_end, valid[i]) == 0)
@@ -70,7 +69,7 @@ void valid_response_line(const std::string& buffer)
 {
     auto check_version = [] (const std::string& buffer)
     {
-        std::string_view valid[] = {"HTTP/1.1", "HTTP/2", "HTTP/3"};
+        std::string_view valid[] = {"HTTP/1.0", "HTTP/1.1", "HTTP/2", "HTTP/3"};
 
         for (auto& x : valid)
         {
@@ -207,7 +206,11 @@ int Server::validate_headers(const std::string& headers, const std::string& meth
     }
     else
     {
-        // from server
+        if (elements.find("content-Length") != elements.end())
+        {
+            size_t content_location = headers.find("Content-Length");
+            return (extract_content_length(headers.c_str() + content_location));
+        }
     }
     return (0);
 }

@@ -7,6 +7,7 @@ void Server::send_request_server(int fd, Data& data)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
         {
+            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
             close(fd);
             send_error_code(data.sockfd, 503);
             backend_map.erase(fd);
@@ -63,7 +64,21 @@ void Server::backend_server_read(int fd, Data& data)
         catch(int error_code)
         {
             send_error_code(data.sockfd, error_code);
+            close(fd);
+            backend_map.erase(fd);
+            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+            return;
         } 
     }
-
+    //
+    auto& client_data = client_map.find(data.sockfd)->second;
+    client_data.write_buffer = data.read_buffer;
+    close(fd);
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+    backend_map.erase(fd);
+    epoll_event events;
+    memset(&events, 0, sizeof(epoll_event));
+    events.data.fd = data.sockfd;
+    events.events = EPOLLOUT;
+    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &events);
 }

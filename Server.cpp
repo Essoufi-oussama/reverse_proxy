@@ -58,6 +58,7 @@ Server::~Server()
     close(server_socket);
     for(auto& x: backend_map)
     {
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, x.second.sockfd, NULL);
         close(x.second.sockfd);
         close(x.first);
     }
@@ -84,7 +85,7 @@ void Server::run()
                     add_new_connection();
                 }
                 else if (backend_map.find(fd) != backend_map.end())
-                    backend_server_read(fd, backend_map[fd]);
+                    backend_server_read(fd, it_server->second);
                 else if (it_client != client_map.end())
                 {
                     if (it_client->second.sockfd != - 1)

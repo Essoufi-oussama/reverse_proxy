@@ -36,6 +36,7 @@ void Server::send_error_code(int fd, int error_code)
             client_data.write_buffer = client_data.write_buffer.substr(bytes, client_data.write_buffer.size() - bytes);
         return; 
     }
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
     close(fd);
     client_map.erase(fd);
     std::cout << "client disconnected because of bad request\n";
@@ -49,6 +50,7 @@ void Server::client_read(int fd, Data& client_data)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return;
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
         close(fd);
         client_map.erase(fd);
         std::cout << "client Disconnected\n";
