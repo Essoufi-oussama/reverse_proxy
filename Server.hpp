@@ -27,12 +27,14 @@
 struct Data
 
 {
-    Data(int fd) : headers_done(false), content_length{0}, sockfd{fd}, read_buffer{""}, write_buffer{""} {};
+    Data(int fd) : headers_done(false), content_length{0}, sockfd{fd}, read_buffer{""}, write_buffer{""}, bytes_sent{0}, bytes_read{0} {};
     int sockfd;
     std::string read_buffer;
     std::string write_buffer;
     int content_length;
     bool headers_done;
+    size_t bytes_sent;
+    size_t bytes_read;
 };
 
 class Server
@@ -56,4 +58,5 @@ class Server
         void check_header(const std::string& header, size_t& headers_length, std::unordered_set <std::string>& elements, bool from_client);
         int validate_headers(const std::string& headers, const std::string& method, bool from_client);
         void send_error_code(int fd, int error_code);
+        void send_response_client(int fd, Data& data);
 };

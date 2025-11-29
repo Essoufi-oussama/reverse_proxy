@@ -82,3 +82,41 @@ void Server::client_read(int fd, Data& client_data)
     }
     open_backend_connection(client_data, fd);
 }
+
+
+void Server::send_response_client(int fd, Data& data)
+{
+    std::string& buffer = data.write_buffer;
+    int bytes = send(fd, buffer.c_str() + data.bytes_sent, buffer.size() - data.bytes_sent, 0);
+    if (bytes <= 0)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return;
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+        close(fd);
+        client_map.erase(fd);
+        std::cout << "client_disconnected.\n";
+        return ;
+    }
+    data.bytes_sent += bytes;
+    if (data.bytes_sent < data.write_buffer.size())
+        return;
+
+    // everything sent properly make fd able to read again
+
+    epoll_event events;
+    memset(&events, 0, sizeof(events));
+    events.data.fd = -1;
+    events.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &events);
+
+    data.write_buffer.clear();
+    data.read_buffer.clear();
+    data.bytes_sent = 0;
+    data.sockfd = fd;
+
+    //delete tests
+    // epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+    // close(fd);
+    // client_map.erase(fd);
+};

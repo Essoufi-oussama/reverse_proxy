@@ -2,7 +2,7 @@
 
 void Server::send_request_server(int fd, Data& data)
 {
-    int bytes_sent = send(fd, data.write_buffer.c_str(), data.write_buffer.length(), 0);
+    int bytes_sent = send(fd, data.write_buffer.c_str() + data.bytes_sent, data.write_buffer.size() + data.bytes_sent, 0);
     if (bytes_sent < 0)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
@@ -14,8 +14,9 @@ void Server::send_request_server(int fd, Data& data)
         }
         return;
     }
-    if (bytes_sent < data.write_buffer.size())
-        data.write_buffer = data.write_buffer.substr(bytes_sent, data.write_buffer.size() - bytes_sent);
+    data.bytes_sent += bytes_sent;
+    if (data.bytes_sent < data.write_buffer.size())
+        return ;
     else
     {
         data.write_buffer = "";
@@ -31,18 +32,21 @@ void Server::backend_server_read(int fd, Data& data)
 {
     char buffer[BUFFER_SIZE];
 
+    
     int bytes = recv(fd, buffer, BUFFER_SIZE -1, 0);
-    if (bytes <= 0)
+    if (bytes < 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
-        return;
+         return;
+        
         send_error_code(data.sockfd, 502);
         close(fd);
         backend_map.erase(fd);
         std::cout << "Error receiving response from backend server\n";
         return ;
     }
-
+    buffer[bytes] = 0;
+    
     data.read_buffer += buffer;
     if (data.headers_done)
     {
@@ -54,10 +58,8 @@ void Server::backend_server_read(int fd, Data& data)
         try
         {
             if (feed(data, false))
-            {
                 if (!check_body(data))
                     return ; 
-            }
             else
                 return ;
         }
@@ -70,7 +72,15 @@ void Server::backend_server_read(int fd, Data& data)
             return;
         } 
     }
-    // make client aailable for writing
+    auto it = client_map.find(data.sockfd);
+    if (it == client_map.end()) 
+    {
+        // Client disconnected already
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+        close(fd);
+        backend_map.erase(fd);
+        return;
+    }
     auto& client_data = client_map.find(data.sockfd)->second;
     client_data.write_buffer = data.read_buffer;
     epoll_event events;
@@ -78,7 +88,6 @@ void Server::backend_server_read(int fd, Data& data)
     events.data.fd = data.sockfd;
     events.events = EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     epoll_ctl(epoll_fd, EPOLL_CTL_MOD, data.sockfd, &events);
-
     // close backend_connection
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL); 
     close(fd);

@@ -83,7 +83,7 @@ void Server::run()
                 {
                     std::cout << "client disconnected.\n";
                     //had backend connection
-                    if(it_client->second.sockfd != fd)
+                    if(it_client->second.sockfd != -1)
                     {
                         int backend_fd = it_client->second.sockfd;
                         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, backend_fd, NULL);
@@ -93,6 +93,17 @@ void Server::run()
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
                     close(fd);
                     client_map.erase(fd);
+                    continue ;
+                }
+                else if (it_server != backend_map.end())
+                {
+                    std::cout << "backend disconnected.\n";
+                    int client_fd = it_server->second.sockfd;
+                    send_error_code(client_fd, 502);
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+                    close(fd);
+                    backend_map.erase(fd);
+                    continue;
                 }
             }
             if (events[i].events & EPOLLIN)
@@ -106,16 +117,14 @@ void Server::run()
                 else if (backend_map.find(fd) != backend_map.end())
                     backend_server_read(fd, it_server->second);
                 else if (it_client != client_map.end())
-                {
-                    if (it_client->second.sockfd != - 1)
-                        client_read(fd, it_client->second);
-                }
+                    client_read(fd, it_client->second);
             }
             else if (events[i].events & EPOLLOUT)
             {
                 if (it_server != backend_map.end())
                     send_request_server(fd, it_server->second);
-                // else if (it_client != backend_)
+                else if (it_client != client_map.end())
+                    send_response_client(fd, it_client->second);
             }
        } 
     }

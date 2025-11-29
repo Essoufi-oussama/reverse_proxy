@@ -8,22 +8,21 @@ bool Server::check_body(Data& client_data)
     if (client_data.content_length > 0)
     {
         std::string& buffer = client_data.read_buffer;
-        size_t headers_end = buffer.find("\r\n\r\n");
-        if (finished_body(buffer.c_str() + headers_end, client_data.content_length))
-        {
-            // remove leftovers
-            size_t body_end = headers_end + client_data.content_length;
-            client_data.read_buffer.erase(body_end);
-        }
-        else
+        size_t body_start = buffer.find("\r\n\r\n") + 4;
+        if (!finished_body(buffer.c_str() + body_start, client_data.content_length))
         {
             struct epoll_event events;
             memset(&events, 0 , sizeof(events));
             events.events = EPOLLOUT;
             events.data.fd = client_data.sockfd;
-            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_data.sockfd,&events);
+            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_data.sockfd, &events);
             return false;
         }
+        // else
+        // {
+        //     size_t erase_start = body_start + client_data.content_length;
+        //     buffer.erase(buffer.begin() + erase_start);
+        // }
     }
     return true;
 }
@@ -76,6 +75,7 @@ void valid_response_line(const std::string& buffer)
             if (buffer.compare(0, x.length(), x) == 0)
                 return;
         }
+        std::cout << buffer;
         throw 502;
     };
     auto valid_status_code = [] (const std::string& buffer) {
@@ -86,19 +86,28 @@ void valid_response_line(const std::string& buffer)
     };
     size_t version_end = buffer.find(' ');
     if (version_end == std::string::npos)
+    {
+        std::cout << buffer;
         throw 502;
+    }
     size_t status_code_end = buffer.find(' ', version_end + 1);
     if (status_code_end == std::string::npos)
     {
         status_code_end = buffer.find("\r\n", version_end + 1);
         if( status_code_end == std::string::npos)
+        {
+            std::cout << buffer;
             throw 502;
+        }
     }
     std::string version = buffer.substr(0, version_end);
     std::string status  = buffer.substr(version_end + 1, status_code_end - (version_end + 1));
     check_version(version);
     if(!valid_status_code(status))
+    {
+        std::cout << buffer;
         throw 502;
+    }
     // there is parsing fro response phrase ? maybe later
 }
 
@@ -119,7 +128,8 @@ int extract_content_length(const std::string& content_length)
         if (!std::isdigit((unsigned char)value[i]))
             throw 400; //invalid header
     }
-    return std::stoi(value.substr(start, stop - start));
+    value = value.substr(start, stop - start);
+    return std::stoi(value);
 }
 
 
@@ -198,15 +208,16 @@ int Server::validate_headers(const std::string& headers, const std::string& meth
             throw 400; //invalid
         if(method == "POST" || method == "PUT")
         {
-            if (elements.find("content-Length") == elements.end())
+            if (elements.find("content-length") == elements.end())
                 throw 411; //invalid 411 error
-            size_t content_location = headers.find("Content-Length");
+            size_t content_location = headers.find("content-length");
             return (extract_content_length(headers.c_str() + content_location));
         }
     }
     else
     {
-        if (elements.find("content-Length") != elements.end())
+        
+        if (elements.find("content-length") != elements.end())
         {
             size_t content_location = headers.find("Content-Length");
             return (extract_content_length(headers.c_str() + content_location));

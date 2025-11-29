@@ -42,12 +42,13 @@ void Server::open_backend_connection(Data& client_data, int fd)
     struct   epoll_event server_events;
     memset(&server_events, 0, sizeof(server_events));
     server_events.data.fd = backenfd;
-    server_events.events = EPOLLOUT;
+    server_events.events = EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, backenfd, &server_events);
 
     // for client remove epollIN
-    memset(&server_events, 0, sizeof(server_events));
     client_data.sockfd = backenfd;
+    struct   epoll_event client_events;
+    memset(&server_events, 0, sizeof(client_events));
     server_events.data.fd = fd;
     server_events.events = EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &server_events);
