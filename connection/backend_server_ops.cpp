@@ -64,21 +64,23 @@ void Server::backend_server_read(int fd, Data& data)
         catch(int error_code)
         {
             send_error_code(data.sockfd, error_code);
+            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
             close(fd);
             backend_map.erase(fd);
-            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
             return;
         } 
     }
-    //
+    // make client aailable for writing
     auto& client_data = client_map.find(data.sockfd)->second;
     client_data.write_buffer = data.read_buffer;
-    close(fd);
-    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-    backend_map.erase(fd);
     epoll_event events;
     memset(&events, 0, sizeof(epoll_event));
     events.data.fd = data.sockfd;
-    events.events = EPOLLOUT;
-    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &events);
+    events.events = EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, data.sockfd, &events);
+
+    // close backend_connection
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL); 
+    close(fd);
+    backend_map.erase(fd);
 }

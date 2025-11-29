@@ -29,17 +29,28 @@ void Server::open_backend_connection(Data& client_data, int fd)
     freeaddrinfo(res);
     if (p == NULL)
         throw 503;
+
+
     int opts = fcntl(backenfd, F_GETFL);
     fcntl(backenfd, F_SETFL, opts | O_NONBLOCK);
     backend_map.emplace(backenfd, Data {fd});
     auto &it = backend_map.find(backenfd)->second;
     it.write_buffer = client_data.read_buffer;
     client_data.read_buffer = "";
-    client_data.sockfd = -1;
+
+
     struct   epoll_event server_events;
+    memset(&server_events, 0, sizeof(server_events));
     server_events.data.fd = backenfd;
     server_events.events = EPOLLOUT;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, backenfd, &server_events);
+
+    // for client remove epollIN
+    memset(&server_events, 0, sizeof(server_events));
+    client_data.sockfd = backenfd;
+    server_events.data.fd = fd;
+    server_events.events = EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &server_events);
 }
 
 void Server::add_new_connection()
@@ -52,6 +63,6 @@ void Server::add_new_connection()
     client_map.emplace(client_fd, Data(client_fd));
     struct   epoll_event server_events;
     server_events.data.fd = client_fd;
-    server_events.events = EPOLLIN;
+    server_events.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &server_events);
 }

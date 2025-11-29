@@ -73,9 +73,28 @@ void Server::run()
        int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
        for (int i = 0; i < n ; i++)
        {
-           int fd = events[i].data.fd;
-           auto it_client = client_map.find(fd);
-           auto it_server = backend_map.find(fd);
+            int fd = events[i].data.fd;
+            auto it_client = client_map.find(fd);
+            auto it_server = backend_map.find(fd);
+
+            if(events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) //disconnect
+            {
+                if (it_client != client_map.end())
+                {
+                    std::cout << "client disconnected.\n";
+                    //had backend connection
+                    if(it_client->second.sockfd != fd)
+                    {
+                        int backend_fd = it_client->second.sockfd;
+                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, backend_fd, NULL);
+                        close(it_client->second.sockfd);
+                        backend_map.erase(it_client->second.sockfd);
+                    }
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+                    close(fd);
+                    client_map.erase(fd);
+                }
+            }
             if (events[i].events & EPOLLIN)
             {
 
@@ -96,6 +115,7 @@ void Server::run()
             {
                 if (it_server != backend_map.end())
                     send_request_server(fd, it_server->second);
+                // else if (it_client != backend_)
             }
        } 
     }
