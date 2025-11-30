@@ -21,19 +21,26 @@ void Server::send_error_code(int fd, int error_code)
         }
         return std::string("");
     };
+    auto it = client_map.find(fd);
+    if (it == client_map.end())
+        return;
     Data& client_data = client_map.find(fd)->second;
-
+    if (client_data.sockfd > 0)
+    {
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_data.sockfd, NULL);
+        close(client_data.sockfd);
+        backend_map.erase(client_data.sockfd);
+        client_data.sockfd = -1;
+    }
     client_data.write_buffer = "HTTP/1.1 " + std::to_string(error_code) + ' ' + error_reason(error_code) + "\r\n";
     client_data.write_buffer += "Content-Length: 0\r\nConnection: close\r\n\r\n";
     int bytes = send(fd, client_data.write_buffer.c_str(), client_data.write_buffer.size(), 0);
-    if (bytes < client_data.write_buffer.size() || (bytes <= 0 && (errno == EWOULDBLOCK || errno == EAGAIN)))
+    if (bytes < 0 && (errno == EWOULDBLOCK || errno == EAGAIN))
     {
         epoll_event event;
         event.data.fd = fd;
-        event.events = EPOLLOUT;
+        event.events = EPOLLOUT | EPOLLRDHUP | EPOLLHUP | EPOLLERR;;
         epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event);
-        if (bytes > 0)
-            client_data.write_buffer = client_data.write_buffer.substr(bytes, client_data.write_buffer.size() - bytes);
         return; 
     }
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
@@ -50,6 +57,12 @@ void Server::client_read(int fd, Data& client_data)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return;
+        if (client_data.sockfd > 0)
+        {
+            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_data.sockfd, NULL);
+            close(client_data.sockfd);
+            backend_map.erase(client_data.sockfd);
+        }
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
         close(fd);
         client_map.erase(fd);
@@ -58,14 +71,14 @@ void Server::client_read(int fd, Data& client_data)
     }
     buffer[bytes] = 0;
     client_data.read_buffer += buffer;
-    if (client_data.headers_done)
+    try
     {
-        if (!check_body(client_data))
-            return ; 
-    }
-    else
-    {
-        try
+        if (client_data.headers_done)
+        {
+            if (!check_body(client_data))
+                return ; 
+        }
+        else
         {
             if (feed(client_data, true))
             {
@@ -75,17 +88,20 @@ void Server::client_read(int fd, Data& client_data)
             else
                 return ;
         }
-        catch(int error_code)
-        {
-            send_error_code(fd, error_code);
-        }   
+        open_backend_connection(client_data, fd);
     }
-    open_backend_connection(client_data, fd);
+    catch(int error_code)
+    {
+        send_error_code(fd, error_code);
+        return ;
+    } 
+    
 }
 
 
 void Server::send_response_client(int fd, Data& data)
 {
+    std::cout << "sending data to client\n";
     std::string& buffer = data.write_buffer;
     int bytes = send(fd, buffer.c_str() + data.bytes_sent, buffer.size() - data.bytes_sent, 0);
     if (bytes <= 0)
@@ -95,28 +111,24 @@ void Server::send_response_client(int fd, Data& data)
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
         close(fd);
         client_map.erase(fd);
-        std::cout << "client_disconnected.\n";
+        // std::cout << "client_disconnected.\n";
         return ;
     }
     data.bytes_sent += bytes;
     if (data.bytes_sent < data.write_buffer.size())
         return;
-
+        
     // everything sent properly make fd able to read again
 
     epoll_event events;
     memset(&events, 0, sizeof(events));
-    events.data.fd = -1;
+    events.data.fd = fd;
     events.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &events);
 
     data.write_buffer.clear();
     data.read_buffer.clear();
     data.bytes_sent = 0;
-    data.sockfd = fd;
-
-    //delete tests
-    // epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-    // close(fd);
-    // client_map.erase(fd);
+    data.headers_done = false;
+    data.sockfd = -1;
 };

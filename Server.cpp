@@ -7,11 +7,11 @@ Server::Server()
     if (epoll_fd == -1)
         throw std::runtime_error("epoll_create");
     int yes = 1;
-    addrinfo *p,*res, events;
-    memset(&events, 0, sizeof(events));
-    events.ai_socktype = SOCK_STREAM;
-    events.ai_family = AF_UNSPEC;
-    if (getaddrinfo(NULL, "8080", &events, &res) == -1)
+    addrinfo *p,*res, hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_UNSPEC;
+    if (getaddrinfo(NULL, "8080", &hints, &res) == -1)
         throw std::runtime_error("getaddrinfo fail");
     for (p = res; p != NULL ;p = p->ai_next)
     {
@@ -71,6 +71,8 @@ void Server::run()
     while(1)
     {
        int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+    //    std::cout << "Active connections: client=" << client_map.size() 
+    //               << " backend=" << backend_map.size() << std::endl;
        for (int i = 0; i < n ; i++)
        {
             int fd = events[i].data.fd;
@@ -82,7 +84,6 @@ void Server::run()
                 if (it_client != client_map.end())
                 {
                     std::cout << "client disconnected.\n";
-                    //had backend connection
                     if(it_client->second.sockfd != -1)
                     {
                         int backend_fd = it_client->second.sockfd;
@@ -111,7 +112,7 @@ void Server::run()
 
                 if (fd == server_socket)
                 {
-                    std::cout << "received new connection\n";
+                    // std::cout << "received new connection\n";
                     add_new_connection();
                 }
                 else if (backend_map.find(fd) != backend_map.end())

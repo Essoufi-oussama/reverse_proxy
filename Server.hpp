@@ -18,8 +18,8 @@
 #include <ctype.h>
 #include <unordered_set>
 #include <algorithm>
-#define BACKLOG 10
-#define MAX_EVENTS 30
+#define BACKLOG 12
+#define MAX_EVENTS 12
 #define BUFFER_SIZE 512
 #define MAX_HEADER_LENGTH 8000
 #define MAX_HEADERS_LENGTH 32000
@@ -27,14 +27,13 @@
 struct Data
 
 {
-    Data(int fd) : headers_done(false), content_length{0}, sockfd{fd}, read_buffer{""}, write_buffer{""}, bytes_sent{0}, bytes_read{0} {};
+    Data() : headers_done(false), content_length{0}, sockfd{-1}, read_buffer{""}, write_buffer{""}, bytes_sent{0} {};
     int sockfd;
     std::string read_buffer;
     std::string write_buffer;
     int content_length;
     bool headers_done;
     size_t bytes_sent;
-    size_t bytes_read;
 };
 
 class Server

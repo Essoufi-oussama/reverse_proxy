@@ -3,12 +3,12 @@
 
 void Server::open_backend_connection(Data& client_data, int fd)
 {
-    addrinfo *p, *res, events;
+    addrinfo *p, *res, hints;
 
-    memset(&events, 0 , sizeof(events));
-    events.ai_family = AF_UNSPEC;
-    events.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo("localhost", "8081", &events, &res) == -1)
+    memset(&hints, 0 , sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo("localhost", "8081", &hints, &res) == -1)
     {
         throw std::runtime_error("get addrinfo fail");
     }
@@ -30,14 +30,12 @@ void Server::open_backend_connection(Data& client_data, int fd)
     if (p == NULL)
         throw 503;
 
-
     int opts = fcntl(backenfd, F_GETFL);
     fcntl(backenfd, F_SETFL, opts | O_NONBLOCK);
-    backend_map.emplace(backenfd, Data {fd});
+    backend_map.emplace(backenfd, Data{});
     auto &it = backend_map.find(backenfd)->second;
     it.write_buffer = client_data.read_buffer;
-    client_data.read_buffer = "";
-
+    it.sockfd = fd;
 
     struct   epoll_event server_events;
     memset(&server_events, 0, sizeof(server_events));
@@ -47,23 +45,27 @@ void Server::open_backend_connection(Data& client_data, int fd)
 
     // for client remove epollIN
     client_data.sockfd = backenfd;
+    client_data.read_buffer.clear();
     struct   epoll_event client_events;
-    memset(&server_events, 0, sizeof(client_events));
-    server_events.data.fd = fd;
-    server_events.events = EPOLLRDHUP | EPOLLHUP | EPOLLERR;
-    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &server_events);
+    memset(&client_events, 0, sizeof(client_events));
+    client_events.data.fd = fd;
+    client_events.events = EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &client_events);
 }
 
 void Server::add_new_connection()
 {
-    int client_fd = accept(server_socket, NULL, NULL);
-    if (client_fd == -1)
-        return;
-    int opts = fcntl(client_fd, F_GETFL);
-    fcntl(client_fd, F_SETFL, opts | O_NONBLOCK);
-    client_map.emplace(client_fd, Data(client_fd));
-    struct   epoll_event server_events;
-    server_events.data.fd = client_fd;
-    server_events.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
-    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &server_events);
+    while(true)
+    {
+        int client_fd = accept(server_socket, NULL, NULL);
+        if (client_fd == -1)
+            return;
+        int opts = fcntl(client_fd, F_GETFL);
+        fcntl(client_fd, F_SETFL, opts | O_NONBLOCK);
+        client_map.emplace(client_fd, Data());
+        struct   epoll_event server_events;
+        server_events.data.fd = client_fd;
+        server_events.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
+        epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &server_events);
+    }
 }
