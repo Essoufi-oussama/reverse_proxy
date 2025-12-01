@@ -75,7 +75,6 @@ void valid_response_line(const std::string& buffer)
             if (buffer.compare(0, x.length(), x) == 0)
                 return;
         }
-        std::cout << buffer;
         throw 502;
     };
     auto valid_status_code = [] (const std::string& buffer) {
@@ -86,28 +85,19 @@ void valid_response_line(const std::string& buffer)
     };
     size_t version_end = buffer.find(' ');
     if (version_end == std::string::npos)
-    {
-        std::cout << buffer;
         throw 502;
-    }
     size_t status_code_end = buffer.find(' ', version_end + 1);
     if (status_code_end == std::string::npos)
     {
         status_code_end = buffer.find("\r\n", version_end + 1);
         if( status_code_end == std::string::npos)
-        {
-            std::cout << buffer;
             throw 502;
-        }
     }
     std::string version = buffer.substr(0, version_end);
     std::string status  = buffer.substr(version_end + 1, status_code_end - (version_end + 1));
     check_version(version);
     if(!valid_status_code(status))
-    {
-        std::cout << buffer;
         throw 502;
-    }
     // there is parsing fro response phrase ? maybe later
 }
 
