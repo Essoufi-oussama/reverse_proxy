@@ -201,7 +201,15 @@ void Server::run()
                 disconnect_events(fd);
             }
        }
-       std::cout << "Active clients: " << client_map.size() << "\n";
-       std::cout << "Active backends: " << backend_map.size() << "\n";
+       if (client_map.size() > 0 && backend_map.size() == 0)
+        {
+            std::cerr << "WARNING: " << client_map.size() 
+                    << " clients with no backends!\n";
+            for (auto& pair : client_map) {
+                std::cerr << "  Stuck client fd=" << pair.first 
+                        << " backend_fd=" << pair.second.sockfd 
+                        << " headers_done=" << pair.second.headers_done << "\n";
+            }
+        }
     }
 }

@@ -85,6 +85,8 @@ void Server::client_read(int fd, Data& client_data)
     }
     catch(int error_code)
     {
+         std::cerr << "ERROR: Failed to open backend for client fd=" << fd 
+              << " error=" << error_code << "\n";
         send_error_code(fd, error_code);
         return ;
     }

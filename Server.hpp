@@ -19,11 +19,11 @@
 #include <unordered_set>
 #include <algorithm>
 #define BACKLOG 4096
-#define MAX_EVENTS 5
+#define MAX_EVENTS 256
 #define BUFFER_SIZE 512
 #define MAX_HEADER_LENGTH 8000
 #define MAX_HEADERS_LENGTH 32000
-
+#define MAX_CLIENTS_AT_TIME 30
 struct Data
 
 {

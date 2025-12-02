@@ -63,6 +63,11 @@ void Server::backend_server_read(int fd, Data& data)
         else if (data.read_buffer.empty())
             send_error_code(client_fd, 502);
         safe_close(fd, backend_map);
+        auto it = client_map.find(client_fd);
+        if (it != client_map.end()) 
+        {
+            it->second.sockfd = -1;
+        }
         return; 
     }
     buffer[bytes] = 0;
@@ -103,5 +108,6 @@ void Server::backend_server_read(int fd, Data& data)
     client_data.write_buffer = data.read_buffer;
 
     safe_close(fd, backend_map);
+    client_data.sockfd = -1;
     make_client_socket_writable(client_fd, epoll_fd);
 }
