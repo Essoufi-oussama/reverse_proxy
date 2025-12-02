@@ -55,14 +55,11 @@ void Server::client_read(int fd, Data& client_data)
             return;
         if (client_data.sockfd > 0)
         {
-            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_data.sockfd, NULL);
-            close(client_data.sockfd);
-            backend_map.erase(client_data.sockfd);
+            safe_close(client_data.sockfd, backend_map);
+            client_data.sockfd = -1;
         }
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-        close(fd);
-        client_map.erase(fd);
-        // std::cout << "client Disconnected\n";
+        safe_close(fd, client_map);
+        std::cout << "Client disconnected fd " << fd << "\n";
         return ;
     }
     buffer[bytes] = 0;
@@ -84,35 +81,41 @@ void Server::client_read(int fd, Data& client_data)
             else
                 return ;
         }
-        
         open_backend_connection(client_data, fd);
-        
     }
     catch(int error_code)
     {
         send_error_code(fd, error_code);
         return ;
-    } 
+    }
 }
 
 
 void Server::send_response_client(int fd, Data& data)
 {
     std::string& buffer = data.write_buffer;
+
     int bytes = send(fd, buffer.c_str() + data.bytes_sent, buffer.size() - data.bytes_sent, 0);
+    std::cout << "Client fd=" << fd << " sent " << bytes << " bytes.\n";
     if (bytes <= 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return;
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-        close(fd);
-        client_map.erase(fd);
-        // std::cout << "client_disconnected.\n";
+        safe_close(fd, client_map);
+        if (data.sockfd != -1) {
+            safe_close(data.sockfd, backend_map);
+            data.sockfd = -1;
+        }
         return ;
     }
     data.bytes_sent += bytes;
     if (data.bytes_sent < data.write_buffer.size())
         return;
+
+    if (data.sockfd != -1) {
+        safe_close(data.sockfd, backend_map);
+        data.sockfd = -1;
+    }
     epoll_event events;
     memset(&events, 0, sizeof(events));
     events.data.fd = fd;
@@ -123,9 +126,4 @@ void Server::send_response_client(int fd, Data& data)
     data.read_buffer.clear();
     data.bytes_sent = 0;
     data.headers_done = false;
-    data.sockfd = -1;
-
-    // epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-    // close(fd);
-    // client_map.erase(fd);
-};
+}

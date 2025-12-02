@@ -6,7 +6,7 @@ void Server::open_backend_connection(Data& client_data, int client_fd)
     bool success = false;
     if (backendfd == -1)
         throw 503;
-
+    std::cout << "New backend connection fd=" << backendfd << "\n";
     int opts = fcntl(backendfd, F_GETFL);
     fcntl(backendfd, F_SETFL, opts | O_NONBLOCK);
 
@@ -43,7 +43,7 @@ void Server::open_backend_connection(Data& client_data, int client_fd)
     memset(&client_events, 0, sizeof(client_events));
     client_events.data.fd = client_fd;
     client_events.events = EPOLLRDHUP | EPOLLHUP | EPOLLERR;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, backendfd, &backend_event) == -1)
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &client_events) == -1)
     {
         perror("epoll_ctl");
         close(client_fd);
@@ -59,6 +59,7 @@ void Server::add_new_connection()
         int client_fd = accept(server_socket, NULL, NULL);
         if (client_fd == -1)
             break ;
+        std::cout << "New client connection fd=" << client_fd << "\n";
         int opts = fcntl(client_fd, F_GETFL);
         fcntl(client_fd, F_SETFL, opts | O_NONBLOCK);
         client_map.emplace(client_fd, Data());
@@ -66,5 +67,5 @@ void Server::add_new_connection()
         server_events.data.fd = client_fd;
         server_events.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
         epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &server_events);
-    } 
+    }
 }

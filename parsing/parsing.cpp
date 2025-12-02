@@ -10,19 +10,7 @@ bool Server::check_body(Data& client_data)
         std::string& buffer = client_data.read_buffer;
         size_t body_start = buffer.find("\r\n\r\n") + 4;
         if (!finished_body(buffer.c_str() + body_start, client_data.content_length))
-        {
-            struct epoll_event events;
-            memset(&events, 0 , sizeof(events));
-            events.events = EPOLLOUT;
-            events.data.fd = client_data.sockfd;
-            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_data.sockfd, &events);
             return false;
-        }
-        // else
-        // {
-        //     size_t erase_start = body_start + client_data.content_length;
-        //     buffer.erase(buffer.begin() + erase_start);
-        // }
     }
     return true;
 }
@@ -229,6 +217,7 @@ bool Server::feed(Data& data, bool from_client)
             throw 431 ;
         if (buffer.find("\n\n") != std::string::npos)
             throw 400;
+        // std::cout << "Headers not complete yet.\n";
         return false;
     }
     std::string method {""};

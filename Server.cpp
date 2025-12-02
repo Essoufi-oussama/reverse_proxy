@@ -3,7 +3,7 @@
 
 void Server::safe_close(int fd, std::unordered_map<int, Data>& m) {
     if (fd == -1) return;
-    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
     close(fd);
     m.erase(fd);
 }
@@ -16,7 +16,7 @@ void Server::initialize_backend()
     memset(&hints, 0 , sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo("localhost", "8081", &hints, &res) == -1)
+    if (getaddrinfo("127.0.0.1", "8081", &hints, &res) == -1)
     {
         throw std::runtime_error("get addrinfo fail");
     }
@@ -28,7 +28,7 @@ void Server::initialize_backend()
         if (connect(sockfd, p->ai_addr, p->ai_addrlen) == 0)
         {
             close(sockfd);
-            // This one works, save it
+            // This one works
             backend.addr_family = p->ai_family;
             backend.addr_len = p->ai_addrlen;
             backend.addr_protocol = p->ai_protocol;
@@ -39,7 +39,7 @@ void Server::initialize_backend()
         }
         close(sockfd);
     }
-    throw "couldn't connect to a backend";
+    throw std::runtime_error("couldn't connect to a backend");
 }
 
 Server::Server()
@@ -158,7 +158,7 @@ void Server::disconnect_events(int fd)
     auto it_client = client_map.find(fd);
     if (it_client != client_map.end())
     {
-        // std::cout << "client disconnected.\n";
+        std::cout << "client disconnected.\n";
         if(it_client->second.sockfd != -1)
         {
             int backend_fd = it_client->second.sockfd;
@@ -174,7 +174,7 @@ void Server::disconnect_events(int fd)
     }
     else if (it_server != backend_map.end())
     {
-        // std::cout << "backend disconnected.\n";
+        std::cout << "backend disconnected.\n";
         int client_fd = it_server->second.sockfd;
         send_error_code(client_fd, 502);
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
@@ -189,23 +189,19 @@ void Server::run()
     while(1)
     {
        int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-    //    std::cout << "Active connections: client=" << client_map.size() 
-    //               << " backend=" << backend_map.size() << std::endl;
        for (int i = 0; i < n ; i++)
        {
             int fd = events[i].data.fd;
-            // std::cout << "[EVENT] fd=" << events[i].data.fd 
-            // << " events=" << events[i].events << "\n";
-  
-            if(events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
-            {
-                disconnect_events(fd);
-                continue ;
-            }
             if (events[i].events & EPOLLIN)
                 read_events(fd);
             if (events[i].events & EPOLLOUT)
                 write_events(fd);
-       } 
+            if(events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
+            {
+                disconnect_events(fd);
+            }
+       }
+       std::cout << "Active clients: " << client_map.size() << "\n";
+       std::cout << "Active backends: " << backend_map.size() << "\n";
     }
 }
