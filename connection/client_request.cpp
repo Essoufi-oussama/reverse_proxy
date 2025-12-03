@@ -98,7 +98,6 @@ void Server::send_response_client(int fd, Data& data)
     std::string& buffer = data.write_buffer;
 
     int bytes = send(fd, buffer.c_str() + data.bytes_sent, buffer.size() - data.bytes_sent, 0);
-    std::cout << "Client fd=" << fd << " sent " << bytes << " bytes.\n";
     if (bytes <= 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -124,8 +123,5 @@ void Server::send_response_client(int fd, Data& data)
     events.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR;
     epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &events);
 
-    data.write_buffer.clear();
-    data.read_buffer.clear();
-    data.bytes_sent = 0;
-    data.headers_done = false;
+    data.reset();
 }

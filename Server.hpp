@@ -25,16 +25,26 @@
 #define MAX_HEADERS_LENGTH 32000
 #define MAX_CLIENTS_AT_TIME 30
 struct Data
-
 {
-    Data() : headers_done(false), content_length{0}, sockfd{-1}, read_buffer{""}, write_buffer{""}, bytes_sent{0}, backend_connected{false} {};
-    int sockfd;
+    Data() : headers_done(false), content_length{0}, sockfd{-1}, read_buffer{""}, write_buffer{""}, bytes_sent{0}, backend_connected{false}, end_headers_found{false}, parsed_offset {0} {};
+    void reset() {
+        write_buffer.clear();
+        content_length = 0;
+        bytes_sent = 0;
+        parsed_offset = 0;
+        backend_connected = false;
+        end_headers_found = false;
+        headers_done = false;
+    };
     std::string read_buffer;
     std::string write_buffer;
+    int sockfd;
     int content_length;
-    bool headers_done;
     size_t bytes_sent;
+    size_t parsed_offset;
     bool backend_connected;
+    bool end_headers_found;
+    bool headers_done;
 };
 
 struct Backend

@@ -3,7 +3,6 @@
 void Server::send_request_server(int fd, Data& data)
 {
     int bytes_sent = send(fd, data.write_buffer.c_str() + data.bytes_sent, data.write_buffer.size() - data.bytes_sent, 0);
-    std::cout << "Backend fd=" << fd << " sent " << bytes_sent << " bytes.\n";
     if (bytes_sent < 0)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)

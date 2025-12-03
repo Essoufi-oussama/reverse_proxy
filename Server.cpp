@@ -147,7 +147,6 @@ void Server::write_events(int fd)
     }
     else if (it_client != client_map.end())
     {
-          
         send_response_client(fd, it_client->second);
     }
 }
@@ -201,15 +200,5 @@ void Server::run()
                 disconnect_events(fd);
             }
        }
-       if (client_map.size() > 0 && backend_map.size() == 0)
-        {
-            std::cerr << "WARNING: " << client_map.size() 
-                    << " clients with no backends!\n";
-            for (auto& pair : client_map) {
-                std::cerr << "  Stuck client fd=" << pair.first 
-                        << " backend_fd=" << pair.second.sockfd 
-                        << " headers_done=" << pair.second.headers_done << "\n";
-            }
-        }
     }
 }

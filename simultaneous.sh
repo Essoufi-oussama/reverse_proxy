@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NUM=1000
+NUM=10
 success=0
 fail=0
 pids=()

@@ -206,25 +206,31 @@ int Server::validate_headers(const std::string& headers, const std::string& meth
 
 bool Server::feed(Data& data, bool from_client)
 {
-    std::string buffer = data.read_buffer;
-    size_t tmp = buffer.find("\r\n\r\n");
-    if (tmp == std::string::npos)
+    std::string& buffer = data.read_buffer;
+    if (!data.end_headers_found)
     {
-        size_t first_line = buffer.find("\r\n");
-        if (first_line == std::string::npos && buffer.size() > 8192)
-            throw 414;
-        if (first_line != std::string::npos && buffer.size() > MAX_HEADERS_LENGTH)
-            throw 431 ;
-        if (buffer.find("\n\n") != std::string::npos)
-            throw 400;
-        // std::cout << "Headers not complete yet.\n";
-        return false;
+        size_t start_index = (data.parsed_offset > 3) ? data.parsed_offset - 3 : 0;
+        size_t tmp = buffer.find("\r\n\r\n", start_index);
+        if (tmp == std::string::npos)
+        {
+  
+            if (buffer.size() > MAX_HEADERS_LENGTH)
+                throw 431 ;
+            data.parsed_offset = (buffer.size() > 3) ? buffer.size() - 3 : 0;
+            return false;
+        }
+        else
+        {
+            data.parsed_offset = tmp + 4;
+            data.end_headers_found = true;
+        }
     }
+    // we know all headers are here this will only be done once
     std::string method {""};
     // can tolerate only 1 CRLF
-    size_t line_start = buffer.find("\r\n");
-    if (line_start != 2)
-        line_start = 0;
+    size_t line_start {0};
+    if ( buffer.size() >= 2 && buffer[0] == '\r' && buffer[1] == '\n')
+        line_start = 2;
     if (from_client)
         method = valid_request_line(buffer.c_str() + line_start);
     else

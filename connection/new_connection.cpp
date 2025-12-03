@@ -4,16 +4,13 @@ void Server::open_backend_connection(Data& client_data, int client_fd)
 {
     std::cout << "Opening backend connection for client fd=" << client_fd << "\n";
     int backendfd = socket(backend.addr_family, backend.sock_type, backend.addr_protocol);
-    std::cout << "Created backend socket fd=" << backendfd << "\n";
     bool success = false;
     if (backendfd == -1)
         throw 503;
-    std::cout << "New backend connection fd=" << backendfd << "\n";
     int opts = fcntl(backendfd, F_GETFL);
     fcntl(backendfd, F_SETFL, opts | O_NONBLOCK);
 
     int result = connect(backendfd,(sockaddr *) &backend.backennd_addr, backend.addr_len);
-    std::cout << "Connection result=" << result << "\n";
     if(result == -1)
     {
         if (errno != EINPROGRESS)
@@ -54,7 +51,6 @@ void Server::open_backend_connection(Data& client_data, int client_fd)
         throw std::runtime_error("epoll_ctl ADD backend failed");
     }
     client_data.read_buffer.clear();
-    std::cout << "Backend connection completed for client fd=" << client_fd << " backend fd=" << backendfd << "\n";
 }
 
 void Server::add_new_connection()
