@@ -1,5 +1,22 @@
 #include "../Server.hpp"
 
+void  rewrite_data(Data& client_data, std::string& buffer)
+{
+    buffer = client_data.request;
+    std::string crlf {"\r\n"};
+
+    for (auto &x : client_data.headers)
+    {
+        buffer += (x.first + ':' + x.second + crlf);
+    }
+    for (auto &x : client_data.same_field_headers)
+    {
+        buffer += (x + crlf);
+    }
+    buffer += "\r\n\r\n";
+    buffer += client_data.read_buffer.substr(client_data.parsed_offset + 4, client_data.content_length);
+}
+
 void Server::open_backend_connection(Data& client_data, int client_fd)
 {
     std::cout << "Opening backend connection for client fd=" << client_fd << "\n";
@@ -33,11 +50,10 @@ void Server::open_backend_connection(Data& client_data, int client_fd)
     }
     
     Data backend_data {};
-    backend_data.write_buffer = client_data.read_buffer;
+    rewrite_data(client_data, backend_data.write_buffer);
     backend_data.sockfd = client_fd;
     backend_data.backend_connected = success;
     backend_map[backendfd] = backend_data;
-
 
     client_data.sockfd = backendfd;
     struct   epoll_event client_events;

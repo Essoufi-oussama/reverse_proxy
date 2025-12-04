@@ -35,9 +35,14 @@ struct Data
         backend_connected = false;
         end_headers_found = false;
         headers_done = false;
+        headers.clear();
+        same_field_headers.clear();
     };
     std::string read_buffer;
     std::string write_buffer;
+    std::string request;
+    std::unordered_map<std::string, std::string> headers;
+    std::vector <std::string> same_field_headers;
     int sockfd;
     int content_length;
     size_t bytes_sent;
@@ -75,8 +80,8 @@ class Server
         void client_read(int fd, Data& client_data);
         bool check_body(Data& client_data);
         void send_request_server(int fd, Data& data);
-        void check_header(const std::string& header, size_t& headers_length, std::unordered_set <std::string>& elements, bool from_client);
-        int validate_headers(const std::string& headers, const std::string& method, bool from_client);
+        void check_header(const std::string& header, size_t& headers_length, Data& data, bool from_client );
+        int validate_headers(size_t headers_start, const std::string& method, Data& data, bool from_client);
         void send_error_code(int fd, int error_code);
         void send_response_client(int fd, Data& data);
         void initialize_backend();

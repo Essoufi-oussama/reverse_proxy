@@ -15,7 +15,7 @@ bool Server::check_body(Data& client_data)
     return true;
 }
 
-std::string valid_request_line(const std::string& buffer)
+std::string valid_request_line(const std::string& buffer, size_t& headers_start, std::string& request)
 {
     auto valid_method = [] (const std::string& method, size_t method_end)
     {
@@ -49,10 +49,12 @@ std::string valid_request_line(const std::string& buffer)
         throw 400;
     int version_end = buffer.find("\r\n", path_pos + 1) ;
     check_version(buffer.c_str() + path_pos + 1);
+    headers_start = version_end + 2;
+    request = buffer.substr(0, headers_start); 
     return buffer.substr(0, method_end); 
 }
 
-void valid_response_line(const std::string& buffer)
+void valid_response_line(const std::string& buffer, size_t& headers_start, std::string& request)
 {
     auto check_version = [] (const std::string& buffer)
     {
@@ -77,15 +79,19 @@ void valid_response_line(const std::string& buffer)
     size_t status_code_end = buffer.find(' ', version_end + 1);
     if (status_code_end == std::string::npos)
     {
-        status_code_end = buffer.find("\r\n", version_end + 1);
+        status_code_end = buffer.find("\r\n", version_end + 1) + 2;
+        headers_start = status_code_end;
         if( status_code_end == std::string::npos)
             throw 502;
     }
+    else
+        headers_start = buffer.find("\r\n", version_end + 1) + 2;
     std::string version = buffer.substr(0, version_end);
     std::string status  = buffer.substr(version_end + 1, status_code_end - (version_end + 1));
     check_version(version);
     if(!valid_status_code(status))
         throw 502;
+    request = buffer.substr(0, headers_start); 
     // there is parsing fro response phrase ? maybe later
 }
 
@@ -111,29 +117,62 @@ int extract_content_length(const std::string& content_length)
 }
 
 
-void Server::check_header(const std::string& header, size_t& headers_length, std::unordered_set <std::string>& elements, bool from_client )
+void Server::check_header(const std::string& header, size_t& headers_length, Data& data, bool from_client )
 {
+    auto is_control_char = [] (int c) {
+        return((c < 32 && c != 9) || c == 127);
+    };
+
+    auto perserve_header = [] (const std::string& key)
+    {   
+        return(
+            key == "accept" ||
+            key == "accept-charset" ||
+            key == "accept-encoding" ||
+            key == "accept-language" ||
+            key == "cookie" ||
+            key == "set-cookie" ||
+            key == "vary" ||
+            key == "www-authenticate" ||
+            key == "proxy-authenticate"
+        );
+    };
+
+    std::unordered_map<std::string, std::string>& headers = data.headers;
     size_t line_end = header.find("\r\n");
     headers_length += line_end;
     if (line_end > MAX_HEADER_LENGTH)
-        throw 431; //header_too_large
+        throw 431;
     if (headers_length > MAX_HEADERS_LENGTH)
-        throw 431; //headers too large
+        throw 431;
+
     size_t semicolon_pos = header.find(':');
     if (semicolon_pos == 0 || semicolon_pos == std::string::npos || semicolon_pos > line_end)
-        throw 400; //invalid header
+        throw 400;
+    // check-validity
     if (from_client)
     {
-        for (size_t i = 0; i < semicolon_pos; i++) // key should not have spaces
+        for (size_t i = 0; i < semicolon_pos; i++)
         {
             if (std::isspace(header[i]))
-                throw 400; // same
+                throw 400;
         }
     }
+    for (size_t i = semicolon_pos; i < line_end; i++)
+    {
+        if (is_control_char(header[i]))
+            throw 400;
+    }
     std::string key = header.substr(0, semicolon_pos);
+    std::string value = header.substr(semicolon_pos + 1, line_end - semicolon_pos - 1);
     std::transform(key.begin(), key.end(), key.begin(), [] (unsigned char c){return std::tolower(c);});
-    if (elements.find(key) == elements.end())
-        elements.insert(key);
+    if (headers.find(key) == headers.end())
+    {
+        if (perserve_header(key))
+            data.same_field_headers.emplace_back(header.substr(0, line_end));
+        else
+            headers[key] = value;
+    }
     else
     {
         auto unique_header = [] (const std::string& key){
@@ -149,52 +188,47 @@ void Server::check_header(const std::string& header, size_t& headers_length, std
             );
         };
         if (unique_header(key))
+        {
             throw 400;
-    }
-    //check if value has control characters
-    auto is_control_char = [] (int c) {
-        return((c < 32 && c != 9) || c == 127);
-    };
-    for (size_t i = semicolon_pos; i < line_end; i++)
-    {
-        if (is_control_char(header[i]))
-            throw 400; //error
-    }
+        }
+        if (perserve_header(key))
+            data.same_field_headers.emplace_back(header.substr(0, line_end)); // need add crlf
+        else
+            headers[key] += (", " + value);
+    }    
 }
 
-int Server::validate_headers(const std::string& headers, const std::string& method, bool from_client)
+int Server::validate_headers(size_t headers_start, const std::string& method, Data& data, bool from_client)
 {
-    size_t end_pos = headers.find("\r\n\r\n");
-    if (end_pos == std::string::npos) // empty header
-        throw 400;
-    size_t line_end = 0;
+    size_t end_pos = data.parsed_offset;
+    std::string& headers = data.read_buffer;
+    size_t line_end = headers_start;
     size_t headers_length = 0;
+    std::unordered_map<std::string, std::string>& elements = data.headers;
 
-    std::unordered_set <std::string> elements;
     while(line_end < end_pos)
     {
         size_t previous = line_end;
-        line_end = headers.find( "\r\n", previous);
+        line_end = headers.find("\r\n", previous);
         if (line_end == std::string::npos)
             break;
-        check_header(headers.c_str() + previous, headers_length, elements, from_client);
+        check_header(headers.c_str() + previous, headers_length, data ,from_client);
         line_end += 2;
     }
     if (from_client)
     {
         if (elements.find("host") == elements.end())
-            throw 400; //invalid
+            throw 400;
         if(method == "POST" || method == "PUT")
         {
             if (elements.find("content-length") == elements.end())
-                throw 411; //invalid 411 error
+                throw 411;
             size_t content_location = headers.find("content-length");
             return (extract_content_length(headers.c_str() + content_location));
         }
     }
     else
     {
-        
         if (elements.find("content-length") != elements.end())
         {
             size_t content_location = headers.find("Content-Length");
@@ -213,7 +247,6 @@ bool Server::feed(Data& data, bool from_client)
         size_t tmp = buffer.find("\r\n\r\n", start_index);
         if (tmp == std::string::npos)
         {
-  
             if (buffer.size() > MAX_HEADERS_LENGTH)
                 throw 431 ;
             data.parsed_offset = (buffer.size() > 3) ? buffer.size() - 3 : 0;
@@ -221,22 +254,20 @@ bool Server::feed(Data& data, bool from_client)
         }
         else
         {
-            data.parsed_offset = tmp + 4;
+            data.parsed_offset = tmp;
             data.end_headers_found = true;
         }
     }
-    // we know all headers are here this will only be done once
     std::string method {""};
-    // can tolerate only 1 CRLF
     size_t line_start {0};
     if ( buffer.size() >= 2 && buffer[0] == '\r' && buffer[1] == '\n')
         line_start = 2;
+    size_t headers_start;
     if (from_client)
-        method = valid_request_line(buffer.c_str() + line_start);
+        method = valid_request_line(buffer.c_str() + line_start, headers_start, data.request);
     else
-        valid_response_line(buffer.c_str() + line_start);
-    size_t headers_start = buffer.find("\r\n", line_start);
-    data.content_length = validate_headers(buffer.c_str() + headers_start + 2, method, from_client);
+        valid_response_line(buffer.c_str() + line_start, headers_start, data.request);
+    data.content_length = validate_headers(headers_start, method, data ,from_client);
     data.headers_done = true;
     return true;
 }
