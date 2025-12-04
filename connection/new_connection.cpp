@@ -66,7 +66,8 @@ void Server::open_backend_connection(Data& client_data, int client_fd)
         close(client_fd);
         throw std::runtime_error("epoll_ctl ADD backend failed");
     }
-    client_data.read_buffer.clear();
+    size_t leftover_start = (client_data.parsed_offset + 4) + client_data.content_length;
+    client_data.read_buffer = client_data.read_buffer.substr(leftover_start,  client_data.read_buffer.size() - leftover_start);
 }
 
 void Server::add_new_connection()
